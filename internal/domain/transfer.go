@@ -15,15 +15,15 @@ const (
 	StatusVoPNoMatch      TransferStatus = "VOP_NO_MATCH"
 	StatusRoutingFailed   TransferStatus = "ROUTING_FAILED"
 	StatusInitialized     TransferStatus = "INITIALIZED"
-	StatusFundsHolded     TransferStatus = "FUNDS_HOLDED"
-	StatusCleared         TransferStatus = "CLEARED"
+	StatusSentForClearing TransferStatus = "SENT_FOR_CLEARING"
 	StatusSettled         TransferStatus = "SETTLED"
 )
 
 type TransferOperation string
 
 const (
-	NewTransferEvent TransferOperation = "BANK_ADAPTER_NEW_TRANSFER_EVENT"
+	NewTransferEvent     TransferOperation = "BANK_ADAPTER_NEW_TRANSFER_EVENT"
+	TransferSettledEvent TransferOperation = "TRANSFER_SETTLED_NOTIFY_EVENT"
 )
 
 type Transfer struct {
@@ -45,10 +45,10 @@ type Transfer struct {
 }
 
 func (t *Transfer) DeriveIdempotencyKey(operation TransferOperation) string {
-	idStatus := fmt.Sprintf("%s_%s", t.Id.String(), operation)
-	//sum := sha256.Sum256([]byte(idStatus))
+	idOp := fmt.Sprintf("transfer_op_%s_%s", t.Id.String(), operation)
+	//sum := sha256.Sum256([]byte(idOp))
 	//return hex.EncodeToString(sum[:])
-	return idStatus
+	return idOp
 }
 
 func (t *Transfer) TransitionTo(newStatus TransferStatus) error {
@@ -72,13 +72,10 @@ func (t *Transfer) TransitionTo(newStatus TransferStatus) error {
 		return fmt.Errorf("we can't transition transfer from status %s to %s", t.Status, newStatus)
 	}
 
-	if newStatus == StatusFundsHolded && t.Status != StatusInitialized {
+	if newStatus == StatusSentForClearing && t.Status != StatusInitialized {
 		return fmt.Errorf("we can't transition transfer from status %s to %s", t.Status, newStatus)
 	}
-	if newStatus == StatusCleared && t.Status != StatusFundsHolded {
-		return fmt.Errorf("we can't transition transfer from status %s to %s", t.Status, newStatus)
-	}
-	if newStatus == StatusSettled && t.Status != StatusCleared {
+	if newStatus == StatusSettled && t.Status != StatusSentForClearing {
 		return fmt.Errorf("we can't transition transfer from status %s to %s", t.Status, newStatus)
 	}
 	t.Status = newStatus
@@ -111,6 +108,7 @@ type TransferRepository interface {
 	UpdateStatusAndPartnerBank(ctx context.Context, t *Transfer) error
 	UpdateStatusAndVoPResponse(ctx context.Context, t *Transfer, vopResponseBody string) error
 	UpdateStatusAndOutbox(ctx context.Context, t *Transfer, event *OutboxEvent) error
+	GetById(ctx context.Context, id uuid.UUID) (*Transfer, error)
 }
 
 type LedgerClient interface {

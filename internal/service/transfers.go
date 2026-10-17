@@ -7,6 +7,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
+	"github.com/google/uuid"
 )
 
 type TransfersService struct {
@@ -15,6 +17,33 @@ type TransfersService struct {
 	antifraud    domain.AntifraudChecker
 	router       domain.Router
 	ledgerClient domain.LedgerClient
+}
+
+func (s *TransfersService) SettleSCT(ctx context.Context, transferId uuid.UUID) error {
+	transfer, err := s.repo.GetById(ctx, transferId)
+	if err != nil {
+		return fmt.Errorf("selecting transfer by id from repo: %w", err)
+	}
+	if transfer.Status != domain.StatusSentForClearing {
+		return fmt.Errorf("transfer's status is (%s) but should've been SentForClearing: %w", transfer.Status, err)
+	}
+	err = s.ledgerClient.SettleFunds(ctx, transfer)
+	if err != nil {
+		return fmt.Errorf("ledger.SettleFunds: %w", err)
+	}
+	err = transfer.TransitionTo(domain.StatusSettled)
+	if err != nil {
+		return fmt.Errorf("transfer transition to Status Settled: %w", err)
+	}
+	event, err := s.buildTransferSettledNotifyEvent(transfer)
+	if err != nil {
+		return fmt.Errorf("build transfer settled event: %w", err)
+	}
+	err = s.repo.UpdateStatusAndOutbox(ctx, transfer, event)
+	if err != nil {
+		return fmt.Errorf("repo update status and outbox: %w", err)
+	}
+	return nil
 }
 
 func (s *TransfersService) ExecuteSCT(ctx context.Context, transfer *domain.Transfer) error {
@@ -99,9 +128,9 @@ func (s *TransfersService) HoldFundsAndOutbox(ctx context.Context, transfer *dom
 		return fmt.Errorf("ledgerClient.ReserveFunds: %w", err)
 	}
 
-	err = transfer.TransitionTo(domain.StatusFundsHolded)
+	err = transfer.TransitionTo(domain.StatusSentForClearing)
 	if err != nil {
-		return fmt.Errorf("transfer.TransitionTo(StatusFundsHolded): %w", err)
+		return fmt.Errorf("transfer.TransitionTo(StatusSentForClearing): %w", err)
 	}
 
 	event, err := s.buildNewTransferEvent(transfer)
@@ -138,6 +167,27 @@ func (s *TransfersService) buildNewTransferEvent(transfer *domain.Transfer) (*do
 	event := domain.OutboxEvent{
 		Topic:   fmt.Sprintf("new_sct.%s", transfer.PartnerBank.Code),
 		Key:     transfer.Id.String(),
+		Headers: []byte{},
+		Payload: payload,
+	}
+	return &event, nil
+}
+
+func (s *TransfersService) buildTransferSettledNotifyEvent(transfer *domain.Transfer) (*domain.OutboxEvent, error) {
+	idemKey := transfer.DeriveIdempotencyKey(domain.TransferSettledEvent)
+	payloadStruct := events.TransferSettledNotifyPayload{
+		IdempotencyKey: idemKey,
+		Id:             transfer.Id,
+		MerchantId:     transfer.MerchantId,
+	}
+
+	payload, err := json.Marshal(payloadStruct)
+	if err != nil {
+		return nil, fmt.Errorf("json marshaling: %w", err)
+	}
+	event := domain.OutboxEvent{
+		Topic:   fmt.Sprintf("notifications.users"),
+		Key:     transfer.MerchantId.String(),
 		Headers: []byte{},
 		Payload: payload,
 	}

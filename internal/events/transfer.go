@@ -11,3 +11,9 @@ type NewTransferEventPayload struct {
 	Currency       string    `json:"currency"`
 	MerchantId     uuid.UUID `json:"merchant_id"`
 }
+
+type TransferSettledNotifyPayload struct {
+	IdempotencyKey string    `json:"idempotency_key"`
+	Id             uuid.UUID `json:"id"`
+	MerchantId     uuid.UUID `json:"merchant_id"`
+}

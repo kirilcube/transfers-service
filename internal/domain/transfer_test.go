@@ -31,18 +31,15 @@ func TestTransfer_TransitionTo(t *testing.T) {
 		{"allow CREATED to ROUTING_FAILED", domain.StatusCreated, domain.StatusRoutingFailed, false},
 		{"allow CREATED to INITIALIZED", domain.StatusCreated, domain.StatusInitialized, false},
 		{"allow VOP_NO_MATCH to INITIALIZED", domain.StatusVoPNoMatch, domain.StatusInitialized, false},
-		{"allow INITIALIZED to FUNDS_HOLDED", domain.StatusInitialized, domain.StatusFundsHolded, false},
-		{"allow FUNDS_HOLDED to CLEARED", domain.StatusFundsHolded, domain.StatusCleared, false},
-		{"allow CLEARED to SETTLED", domain.StatusCleared, domain.StatusSettled, false},
+		{"allow INITIALIZED to SENT_FOR_CLEARING", domain.StatusInitialized, domain.StatusSentForClearing, false},
+		{"allow SENT_FOR_CLEARING to SETTLED", domain.StatusSentForClearing, domain.StatusSettled, false},
 
 		// invalid transitions
-		{"restrict SETTLED to CLEARED", domain.StatusSettled, domain.StatusCleared, true},
+		{"restrict SETTLED to SENT_FOR_CLEARING", domain.StatusSettled, domain.StatusSentForClearing, true},
 		{"restrict ANTIFRAUD_FAILED to INITIALIZED", domain.StatusAntifraudFailed, domain.StatusInitialized, true},
 		{"restrict ROUTING_FAILED to INITIALIZED", domain.StatusRoutingFailed, domain.StatusInitialized, true},
 		{"restrict VOP_NO_MATCH to CREATED", domain.StatusVoPNoMatch, domain.StatusCreated, true},
-		{"restrict INITIALIZED to CLEARED", domain.StatusInitialized, domain.StatusCleared, true},
 		{"restrict INITIALIZED to SETTLED", domain.StatusInitialized, domain.StatusSettled, true},
-		{"restrict FUNDS_HOLDED to SETTLED", domain.StatusFundsHolded, domain.StatusSettled, true},
 	}
 
 	for _, test := range tests {
