@@ -76,7 +76,7 @@ func (r *TransferRepo) Create(ctx context.Context, params domain.CreateTransferP
 	return &transfer, nil
 }
 
-func (r *TransferRepo) UpdateStatus(ctx context.Context, t *domain.Transfer, newStatus domain.TransferStatus) error {
+func (r *TransferRepo) UpdateStatus(ctx context.Context, t *domain.Transfer) error {
 	tag, err := r.db.Exec(ctx, `UPDATE sct_transfers
 		SET 
 		    status = $1, 
@@ -84,7 +84,7 @@ func (r *TransferRepo) UpdateStatus(ctx context.Context, t *domain.Transfer, new
 		    locked_at = clock_timestamp(),
 			updated_at = clock_timestamp()
 		WHERE id = $2 AND version = $3
-		`, newStatus, t.Id, t.Version)
+		`, t.Status, t.Id, t.Version)
 	if err != nil {
 		return fmt.Errorf("error updating status: %w", err)
 	}
@@ -92,13 +92,12 @@ func (r *TransferRepo) UpdateStatus(ctx context.Context, t *domain.Transfer, new
 	if tag.RowsAffected() == 0 {
 		return domain.ErrConcurrentModification
 	}
-	t.Status = newStatus
 	t.Version++
 
 	return nil
 }
 
-func (r *TransferRepo) SetPartnerBankWithStatus(ctx context.Context, t *domain.Transfer, bankId uuid.UUID, newStatus domain.TransferStatus) error {
+func (r *TransferRepo) UpdateStatusAndPartnerBank(ctx context.Context, t *domain.Transfer) error {
 	tag, err := r.db.Exec(ctx, `UPDATE sct_transfers
 		SET 
 		    partner_bank = $1,
@@ -108,21 +107,19 @@ func (r *TransferRepo) SetPartnerBankWithStatus(ctx context.Context, t *domain.T
 		    locked_at = clock_timestamp(),
 			updated_at = clock_timestamp()
 		WHERE id = $3 AND version = $4
-		`, bankId, newStatus, t.Id, t.Version)
+		`, t.PartnerBank, t.Status, t.Id, t.Version)
 	if err != nil {
 		return fmt.Errorf("failed to update transfer row: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
 		return domain.ErrConcurrentModification
 	}
-	t.Status = newStatus
-	t.PartnerBank = &bankId
 	t.Version++
 
 	return nil
 }
 
-func (r *TransferRepo) UpdateStatusAndOutbox(ctx context.Context, t *domain.Transfer, newStatus domain.TransferStatus, event *domain.OutboxEvent) error {
+func (r *TransferRepo) UpdateStatusAndOutbox(ctx context.Context, t *domain.Transfer, event *domain.OutboxEvent) error {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -135,7 +132,7 @@ func (r *TransferRepo) UpdateStatusAndOutbox(ctx context.Context, t *domain.Tran
 			locked_at = clock_timestamp(),
 			updated_at = clock_timestamp()
 		WHERE id = $2 AND version = $3`,
-		newStatus, t.Id, t.Version,
+		t.Status, t.Id, t.Version,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update status: %w", err)
@@ -158,7 +155,6 @@ func (r *TransferRepo) UpdateStatusAndOutbox(ctx context.Context, t *domain.Tran
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	t.Status = newStatus
 	t.Version++
 
 	return nil
