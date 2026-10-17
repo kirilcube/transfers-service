@@ -12,18 +12,25 @@ import (
 )
 
 type TransferRepo struct {
-	db *pgxpool.Pool
+	db            *pgxpool.Pool
+	feeCalculator domain.FeeCalculator
 }
 
-func NewTransferRepo(db *pgxpool.Pool) *TransferRepo {
+var _ domain.TransferRepository = &TransferRepo{}
+
+func NewTransferRepo(db *pgxpool.Pool, feeCalculator domain.FeeCalculator) *TransferRepo {
 	t := TransferRepo{
-		db: db,
+		db:            db,
+		feeCalculator: feeCalculator,
 	}
 
 	return &t
 }
 
 func (r *TransferRepo) Create(ctx context.Context, params domain.CreateTransferParams, idempotencyKey string) (*domain.Transfer, error) {
+	feeAmount, err := r.feeCalculator.CalculateFee(ctx, params.MerchantId, params.Iban, params.PrincipalAmount, params.Currency)
+	totalDebit := params.PrincipalAmount + feeAmount
+
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open transaction: %w", err)
@@ -31,11 +38,11 @@ func (r *TransferRepo) Create(ctx context.Context, params domain.CreateTransferP
 	defer tx.Rollback(ctx)
 	row := tx.QueryRow(ctx,
 		`INSERT INTO sct_transfers
-			(merchant_id, iban, payee, amount, currency, reference_text, locked_at)
+			(merchant_id, iban, payee, principal_amount, fee_amount, total_debit, currency, reference_text, locked_at)
 		VALUES 
 		    ($1, $2, $3, $4, $5, $6, clock_timestamp()) 
 		RETURNING id, status, version`,
-		params.MerchantId, params.Iban, params.Payee, params.Amount, params.Currency, params.ReferenceText,
+		params.MerchantId, params.Iban, params.Payee, params.PrincipalAmount, feeAmount, totalDebit, params.Currency, params.ReferenceText,
 	)
 	var transferID uuid.UUID
 	var status domain.TransferStatus
@@ -62,15 +69,17 @@ func (r *TransferRepo) Create(ctx context.Context, params domain.CreateTransferP
 	}
 
 	transfer := domain.Transfer{
-		Id:          transferID,
-		Status:      status,
-		PartnerBank: nil,
-		MerchantId:  params.MerchantId,
-		Iban:        params.Iban,
-		Payee:       params.Payee,
-		Amount:      params.Amount,
-		Currency:    params.Currency,
-		Version:     version,
+		Id:              transferID,
+		Status:          status,
+		PartnerBank:     nil,
+		MerchantId:      params.MerchantId,
+		Iban:            params.Iban,
+		Payee:           params.Payee,
+		PrincipalAmount: params.PrincipalAmount,
+		FeeAmount:       feeAmount,
+		TotalDebit:      totalDebit,
+		Currency:        params.Currency,
+		Version:         version,
 	}
 
 	return &transfer, nil

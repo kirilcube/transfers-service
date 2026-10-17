@@ -20,19 +20,35 @@ const (
 	StatusSettled         TransferStatus = "SETTLED"
 )
 
+type TransferOperation string
+
+const (
+	NewTransferEvent TransferOperation = "BANK_ADAPTER_NEW_TRANSFER_EVENT"
+)
+
 type Transfer struct {
 	Id     uuid.UUID
 	Status TransferStatus
 
-	PartnerBank *uuid.UUID
+	PartnerBank *Bank
 
-	MerchantId uuid.UUID
-	Iban       string
-	Payee      string
-	Amount     int64
-	Currency   string
+	MerchantId      uuid.UUID
+	Iban            string
+	Payee           string
+	PrincipalAmount int64 // Sent over SEPA
+	FeeAmount       int64
+	TotalDebit      int64 // PrincipalAmount +FeeAmount
+	Currency        string
+	VoPOverride     bool
 
 	Version int
+}
+
+func (t *Transfer) DeriveIdempotencyKey(operation TransferOperation) string {
+	idStatus := fmt.Sprintf("%s_%s", t.Id.String(), operation)
+	//sum := sha256.Sum256([]byte(idStatus))
+	//return hex.EncodeToString(sum[:])
+	return idStatus
 }
 
 func (t *Transfer) TransitionTo(newStatus TransferStatus) error {
@@ -69,40 +85,46 @@ func (t *Transfer) TransitionTo(newStatus TransferStatus) error {
 	return nil
 }
 
-func (t *Transfer) SetPartnerBank(id uuid.UUID) error {
+func (t *Transfer) SetPartnerBank(bank Bank) error {
 	if t.PartnerBank != nil {
 		return fmt.Errorf("partner bank is already set for this transfer")
 	}
 	if t.Status != StatusCreated && t.Status != StatusVoPNoMatch {
 		return fmt.Errorf("partner bank cannot be set from status %s", t.Status)
 	}
-	t.PartnerBank = &id
+	t.PartnerBank = &bank
 	return nil
 }
 
 type CreateTransferParams struct {
-	MerchantId    uuid.UUID
-	Iban          string
-	Payee         string
-	Amount        int64
-	Currency      string
-	ReferenceText string
+	MerchantId      uuid.UUID
+	Iban            string
+	Payee           string
+	PrincipalAmount int64
+	Currency        string
+	ReferenceText   string
 }
 
 type TransferRepository interface {
 	Create(ctx context.Context, params CreateTransferParams, idempotencyKey string) (*Transfer, error)
 	UpdateStatus(ctx context.Context, t *Transfer) error
 	UpdateStatusAndPartnerBank(ctx context.Context, t *Transfer) error
+	UpdateStatusAndVoPResponse(ctx context.Context, t *Transfer, vopResponseBody string) error
 	UpdateStatusAndOutbox(ctx context.Context, t *Transfer, event *OutboxEvent) error
 }
 
 type LedgerClient interface {
-	ReserveFunds(ctx context.Context, t *Transfer, idempotencyKey string) error
-	SettleFunds(ctx context.Context, t *Transfer, idempotencyKey string) error
+	ReserveFunds(ctx context.Context, t *Transfer) error
+	SettleFunds(ctx context.Context, t *Transfer) error
+}
+
+type Bank struct {
+	Id   uuid.UUID
+	Code string
 }
 
 type Router interface {
-	GetBank(ctx context.Context, transfer *Transfer) (uuid.UUID, error)
+	GetBank(ctx context.Context, transfer *Transfer) (Bank, error)
 }
 
 type VoPCode string
@@ -120,4 +142,8 @@ type VoPChecker interface {
 
 type AntifraudChecker interface {
 	Check(ctx context.Context, transfer *Transfer) (bool, error)
+}
+
+type FeeCalculator interface {
+	CalculateFee(ctx context.Context, merchantId uuid.UUID, Iban string, principalAmount int64, currency string) (int64, error)
 }

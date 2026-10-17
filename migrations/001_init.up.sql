@@ -17,27 +17,32 @@ CREATE TABLE partner_banks
 
 CREATE TABLE sct_transfers
 (
-    id             UUID PRIMARY KEY         DEFAULT gen_random_uuid(),
-    status         transfer_status NOT NULL DEFAULT 'CREATED',
+    id               UUID PRIMARY KEY         DEFAULT gen_random_uuid(),
+    status           transfer_status NOT NULL DEFAULT 'CREATED',
 
-    partner_bank   UUID REFERENCES partner_banks,
-    vop_response   JSONB,
+    partner_bank     UUID REFERENCES partner_banks,
+    vop_response     JSONB,
 
-    merchant_id    UUID            NOT NULL,
-    iban           VARCHAR(34)     NOT NULL,
-    payee          VARCHAR(70)     NOT NULL,
-    amount         BIGINT          NOT NULL,
-    currency       CHAR(3)         NOT NULL,
-    reference_text VARCHAR(140),
+    merchant_id      UUID            NOT NULL,
+    iban             VARCHAR(34)     NOT NULL,
+    payee            VARCHAR(70)     NOT NULL,
 
-    version        INT             NOT NULL DEFAULT 1,
-    locked_at      TIMESTAMPTZ,
+    principal_amount BIGINT          NOT NULL,
+    total_debit      BIGINT          NOT NULL,
+    fee_amount       BIGINT          NOT NULL,
+    currency         CHAR(3)         NOT NULL,
+    reference_text   VARCHAR(140),
 
-    metadata       JSONB                    DEFAULT '{}',
-    created_at     TIMESTAMPTZ     NOT NULL DEFAULT clock_timestamp(),
-    updated_at     TIMESTAMPTZ     NOT NULL DEFAULT clock_timestamp(),
+    version          INT             NOT NULL DEFAULT 1,
+    locked_at        TIMESTAMPTZ,
 
-    CONSTRAINT chk_positive_amount CHECK (amount > 0)
+    metadata         JSONB                    DEFAULT '{}',
+    created_at       TIMESTAMPTZ     NOT NULL DEFAULT clock_timestamp(),
+    updated_at       TIMESTAMPTZ     NOT NULL DEFAULT clock_timestamp(),
+
+    CONSTRAINT chk_positive_principal_amount CHECK (principal_amount > 0),
+    CONSTRAINT chk_positive_fee_amount CHECK (fee_amount >= 0)
+    CONSTRAINT chk_amounts_balance CHECK (total_debit = principal_amount + fee_amount)
 );
 
 CREATE TABLE idempotency_records

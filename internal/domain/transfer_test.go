@@ -64,39 +64,60 @@ func TestTransfer_TransitionTo(t *testing.T) {
 }
 
 func TestTransfer_SetPartnerBank(t *testing.T) {
-	id := uuid.New()
-	id2 := uuid.New()
+	bank1 := domain.Bank{
+		Id:   uuid.New(),
+		Code: "Bank1",
+	}
+	bank2 := domain.Bank{
+		Id:   uuid.New(),
+		Code: "Bank2",
+	}
 	tests := []struct {
 		name          string
-		targetBankId  uuid.UUID
-		currentBankId *uuid.UUID
+		targetBank    domain.Bank
+		currentBank   *domain.Bank
 		currentStatus domain.TransferStatus
 		expectError   bool
 	}{
 		// happy path
-		{"setting bank id status CREATED", id, nil, domain.StatusCreated, false},
-		{"setting bank id status VoPNoMatch", id, nil, domain.StatusVoPNoMatch, false},
+		{"setting bank id status CREATED", bank1, nil, domain.StatusCreated, false},
+		{"setting bank id status VoPNoMatch", bank1, nil, domain.StatusVoPNoMatch, false},
 
 		// error path
-		{"setting bank id when already set", id, &id2, domain.StatusCreated, true},
-		{"setting bank id when status INITIALIZED", id, nil, domain.StatusInitialized, true},
+		{"setting bank id when already set", bank1, &bank2, domain.StatusCreated, true},
+		{"setting bank id when status INITIALIZED", bank1, nil, domain.StatusInitialized, true},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			transfer := &domain.Transfer{
-				PartnerBank: test.currentBankId,
+				PartnerBank: test.currentBank,
 				Status:      test.currentStatus,
 			}
-			err := transfer.SetPartnerBank(test.targetBankId)
+			err := transfer.SetPartnerBank(test.targetBank)
 			if err != nil && !test.expectError {
 				t.Errorf("didn't expect error, but received one: %v", err)
 			} else if err == nil && test.expectError {
 				t.Errorf("expected error")
 			}
-			if err == nil && !test.expectError && (transfer.PartnerBank == nil || *transfer.PartnerBank != test.targetBankId) {
+			if err == nil && !test.expectError && (transfer.PartnerBank == nil || transfer.PartnerBank.Id != test.targetBank.Id) {
 				t.Errorf("transfer.PartnerBank is not targetBankId")
 			}
 		})
 	}
+}
+
+func TestTransfer_DeriveIdempotencyKey(t *testing.T) {
+	t.Run("Two derived keys should be the same", func(t *testing.T) {
+		transfer := &domain.Transfer{
+			Status: domain.StatusInitialized,
+			Id:     uuid.New(),
+		}
+		var operation domain.TransferOperation = "TEST"
+		idemKey1 := transfer.DeriveIdempotencyKey(operation)
+		idemKey2 := transfer.DeriveIdempotencyKey(operation)
+		if idemKey1 != idemKey2 {
+			t.Errorf("not the same: idemKey1(%s) != idemKey2(%s)", idemKey1, idemKey2)
+		}
+	})
 }
