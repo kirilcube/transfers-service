@@ -81,9 +81,9 @@ func (s *TransfersService) runSweeper(ctx context.Context) {
 
 			select {
 			case <-goroutinesExited:
-				fmt.Println("Sweeper gracefully exited")
+				fmt.Println("[INFO] Sweeper | gracefully exited")
 			case <-timer.C:
-				fmt.Println("Sweeper forced to exit")
+				fmt.Println("[INFO] Sweeper | forced to exit")
 			}
 
 			return
@@ -97,6 +97,9 @@ func (s *TransfersService) SettleSCT(ctx context.Context, transferId uuid.UUID) 
 		return fmt.Errorf("selecting transfer by id from repo: %w", err)
 	}
 	if transfer.Status != domain.StatusSentForClearing {
+		if transfer.Status == domain.StatusSettled {
+			return nil
+		}
 		return fmt.Errorf("transfer's status is (%s) but should've been SentForClearing: %w", transfer.Status, err)
 	}
 	err = s.ledgerClient.SettleFunds(ctx, transfer)

@@ -14,8 +14,17 @@ type NewTransferEventPayload struct {
 	MerchantId     uuid.UUID `json:"merchant_id"`
 }
 
+// In real system we'd use Apache Avro Schemes
+
 type TransferSettledNotifyPayload struct {
 	IdempotencyKey string    `json:"idempotency_key"`
 	Id             uuid.UUID `json:"id"`
 	MerchantId     uuid.UUID `json:"merchant_id"`
+}
+
+// In real system we'd use Apache Avro Schemes
+
+type TransferCleared struct {
+	IdempotencyKey string    `json:"idempotency_key"`
+	Id             uuid.UUID `json:"id"`
 }
