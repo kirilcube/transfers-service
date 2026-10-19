@@ -14,12 +14,40 @@ import (
 )
 
 type TransfersService struct {
-	repo         domain.TransferRepository
-	vop          domain.VoPChecker
-	antifraud    domain.AntifraudChecker
-	router       domain.Router
-	ledgerClient domain.LedgerClient
-	ctx          context.Context
+	repo             domain.TransferRepository
+	vop              domain.VoPChecker
+	antifraud        domain.AntifraudChecker
+	router           domain.Router
+	ledgerClient     domain.LedgerClient
+	sweeperCtxCancel context.CancelFunc
+	wg               sync.WaitGroup
+}
+
+func NewTransfersService(
+	repo domain.TransferRepository,
+	vop domain.VoPChecker,
+	antifraud domain.AntifraudChecker,
+	router domain.Router,
+	ledgerClient domain.LedgerClient,
+) *TransfersService {
+	sweeperCtx, cancel := context.WithCancel(context.Background())
+	s := &TransfersService{
+		repo:             repo,
+		vop:              vop,
+		antifraud:        antifraud,
+		router:           router,
+		ledgerClient:     ledgerClient,
+		sweeperCtxCancel: cancel,
+	}
+	s.wg.Go(func() {
+		s.runSweeper(sweeperCtx)
+	})
+	return s
+}
+
+func (s *TransfersService) Stop() {
+	s.sweeperCtxCancel()
+	s.wg.Wait()
 }
 
 func (s *TransfersService) runSweeper(ctx context.Context) {
