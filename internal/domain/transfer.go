@@ -22,8 +22,10 @@ const (
 type TransferOperation string
 
 const (
-	NewTransferEvent     TransferOperation = "BANK_ADAPTER_NEW_TRANSFER_EVENT"
-	TransferSettledEvent TransferOperation = "TRANSFER_SETTLED_NOTIFY_EVENT"
+	NewTransferEvent        TransferOperation = "BANK_ADAPTER_NEW_TRANSFER_EVENT"
+	TransferSettledEvent    TransferOperation = "TRANSFER_SETTLED_NOTIFY_EVENT"
+	LedgerReserveFundsEvent TransferOperation = "LEDGER_RESERVE_FUNDS_EVENT"
+	LedgerSettleFundsEvent  TransferOperation = "LEDGER_SETTLE_FUNDS_EVENT"
 )
 
 type Transfer struct {

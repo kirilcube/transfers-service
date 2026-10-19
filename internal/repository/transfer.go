@@ -85,6 +85,37 @@ func (r *TransferRepo) Create(ctx context.Context, params domain.CreateTransferP
 	return &transfer, nil
 }
 
+func (r *TransferRepo) GetById(ctx context.Context, id uuid.UUID) (*domain.Transfer, error) {
+	query :=
+		`SELECT t.id, t.status, t.partner_bank, t.merchant_id, t.iban, t.payee, 
+			t.principal_amount, t.fee_amount, t.total_debit, t.currency, 
+			t.vop_override, t.version
+		FROM sct_transfers
+		WHERE id = $1`
+	row := r.db.QueryRow(ctx, query, id)
+
+	transfer := &domain.Transfer{}
+	err := row.Scan(
+		&transfer.Id,
+		&transfer.Status,
+		&transfer.PartnerBank,
+		&transfer.MerchantId,
+		&transfer.Iban,
+		&transfer.Payee,
+		&transfer.PrincipalAmount,
+		&transfer.FeeAmount,
+		&transfer.TotalDebit,
+		&transfer.Currency,
+		&transfer.VoPOverride,
+		&transfer.Version,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("sql SELECT query: %w", err)
+	}
+
+	return transfer, nil
+}
+
 func (r *TransferRepo) UpdateStatus(ctx context.Context, t *domain.Transfer) error {
 	tag, err := r.db.Exec(ctx, `UPDATE sct_transfers
 		SET 
@@ -119,6 +150,27 @@ func (r *TransferRepo) UpdateStatusAndPartnerBank(ctx context.Context, t *domain
 		`, t.PartnerBank, t.Status, t.Id, t.Version)
 	if err != nil {
 		return fmt.Errorf("failed to update transfer row: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrConcurrentModification
+	}
+	t.Version++
+
+	return nil
+}
+
+func (r *TransferRepo) UpdateStatusAndVoPResponse(ctx context.Context, t *domain.Transfer, vopResponseBody string) error {
+	query :=
+		`UPDATE sct_transfers
+		SET vop_response = $1,
+		    status = $2,
+			version = version + 1,
+			locked_at = clock_timestamp(),
+			updated_at = clock_timestamp()
+		WHERE id = $3 AND version = $4`
+	tag, err := r.db.Exec(ctx, query, vopResponseBody, t.Status, t.Id, t.Version)
+	if err != nil {
+		return fmt.Errorf("sql update query: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
 		return domain.ErrConcurrentModification
