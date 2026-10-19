@@ -4,7 +4,7 @@ CREATE TYPE idempotency_status AS ENUM (
 
 CREATE TYPE transfer_status AS ENUM (
     'CREATED', 'ANTIFRAUD_FAILED', 'VOP_NO_MATCH', 'ROUTING_FAILED', 'INITIALIZED',
-    'FUNDS_HOLDED', 'CLEARED', 'SETTLED'
+    'SENT_FOR_CLEARING', 'SETTLED'
 );
 
 CREATE TABLE partner_banks
@@ -22,6 +22,7 @@ CREATE TABLE sct_transfers
 
     partner_bank     UUID REFERENCES partner_banks,
     vop_response     JSONB,
+    vop_override     BOOL DEFAULT FALSE,
 
     merchant_id      UUID            NOT NULL,
     iban             VARCHAR(34)     NOT NULL,
@@ -68,5 +69,4 @@ CREATE TABLE outbox
     payload    JSONB        NOT NULL,
     created_at TIMESTAMPTZ  NOT NULL DEFAULT clock_timestamp()
 );
-
-CREATE INDEX idx_sct_transfers_sweeper ON sct_transfers (status, locked_at) WHERE status IN ('CREATED', 'INITIALIZED', 'FUNDS_HOLDED', 'CLEARED');
+CREATE INDEX idx_sct_transfers_sweeper ON sct_transfers (status, locked_at) WHERE status IN ('CREATED', 'INITIALIZED');

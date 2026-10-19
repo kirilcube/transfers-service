@@ -2,6 +2,8 @@ package events
 
 import "github.com/google/uuid"
 
+// In real system we'd use Apache Avro Schemes
+
 type NewTransferEventPayload struct {
 	IdempotencyKey string    `json:"idempotency_key"`
 	Id             uuid.UUID `json:"id"`

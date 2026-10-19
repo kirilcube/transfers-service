@@ -1,6 +1,8 @@
 package service
 
 import (
+	"sync"
+	"time"
 	"transfers/internal/domain"
 	"transfers/internal/events"
 
@@ -17,6 +19,48 @@ type TransfersService struct {
 	antifraud    domain.AntifraudChecker
 	router       domain.Router
 	ledgerClient domain.LedgerClient
+	ctx          context.Context
+}
+
+func (s *TransfersService) runSweeper(ctx context.Context) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	var wg sync.WaitGroup
+
+	for {
+		select {
+		case <-ticker.C:
+			transfers, err := s.repo.SelectForReconciliation(ctx)
+			if err != nil {
+				fmt.Printf("[ERR] Sweeper | failed repo.SelectForReconciliation: %v\n", err)
+			}
+			for _, t := range transfers {
+				wg.Go(func() {
+					err := s.ExecuteSCT(context.Background(), t)
+					if err != nil {
+						fmt.Printf("[ERR] Sweeper | Failed reconciliation for transfer (%v): %v\n", t.Id, err)
+					}
+				})
+			}
+		case <-ctx.Done():
+			timer := time.NewTimer(time.Second * 5)
+			defer timer.Stop()
+			goroutinesExited := make(chan struct{})
+			go func() {
+				wg.Wait()
+				goroutinesExited <- struct{}{}
+			}()
+
+			select {
+			case <-goroutinesExited:
+				fmt.Println("Sweeper gracefully exited")
+			case <-timer.C:
+				fmt.Println("Sweeper forced to exit")
+			}
+
+			return
+		}
+	}
 }
 
 func (s *TransfersService) SettleSCT(ctx context.Context, transferId uuid.UUID) error {
@@ -146,6 +190,7 @@ func (s *TransfersService) HoldFundsAndOutbox(ctx context.Context, transfer *dom
 }
 
 func (s *TransfersService) buildNewTransferEvent(transfer *domain.Transfer) (*domain.OutboxEvent, error) {
+	// In real system we'd use Apache Avro Schemes
 	if transfer.PartnerBank == nil {
 		return nil, fmt.Errorf("transfer.PartnerBank is nil")
 	}
@@ -174,6 +219,7 @@ func (s *TransfersService) buildNewTransferEvent(transfer *domain.Transfer) (*do
 }
 
 func (s *TransfersService) buildTransferSettledNotifyEvent(transfer *domain.Transfer) (*domain.OutboxEvent, error) {
+	// In real system we'd use Apache Avro Schemes
 	idemKey := transfer.DeriveIdempotencyKey(domain.TransferSettledEvent)
 	payloadStruct := events.TransferSettledNotifyPayload{
 		IdempotencyKey: idemKey,

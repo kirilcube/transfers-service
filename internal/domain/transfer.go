@@ -109,6 +109,7 @@ type TransferRepository interface {
 	UpdateStatusAndVoPResponse(ctx context.Context, t *Transfer, vopResponseBody string) error
 	UpdateStatusAndOutbox(ctx context.Context, t *Transfer, event *OutboxEvent) error
 	GetById(ctx context.Context, id uuid.UUID) (*Transfer, error)
+	SelectForReconciliation(ctx context.Context) ([]*Transfer, error)
 }
 
 type LedgerClient interface {

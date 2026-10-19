@@ -168,3 +168,63 @@ func (r *TransferRepo) UpdateStatusAndOutbox(ctx context.Context, t *domain.Tran
 
 	return nil
 }
+
+func (r *TransferRepo) SelectForReconciliation(ctx context.Context) ([]*domain.Transfer, error) {
+	query := `
+		WITH claimed AS (
+			SELECT id
+			FROM sct_transfers
+			WHERE status IN ('CREATED', 'INITIALIZED')
+			  AND locked_at < clock_timestamp() - INTERVAL '5 minutes'
+			FOR UPDATE SKIP LOCKED
+			LIMIT 100
+		)
+		UPDATE sct_transfers t
+		SET 
+			version = t.version + 1,
+			locked_at = clock_timestamp(),
+			updated_at = clock_timestamp()
+		FROM claimed
+		WHERE t.id = claimed.id
+		RETURNING 
+			t.id, t.status, t.partner_bank, t.merchant_id, t.iban, t.payee, 
+			t.principal_amount, t.fee_amount, t.total_debit, t.currency, 
+			t.vop_override, t.version
+	`
+	rows, err := r.db.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("claim transfers for reconciliation: %w", err)
+	}
+	defer rows.Close()
+
+	res := make([]*domain.Transfer, 0, 100)
+	for rows.Next() {
+		transfer := &domain.Transfer{}
+		err = rows.Scan(
+			&transfer.Id,
+			&transfer.Status,
+			&transfer.PartnerBank,
+			&transfer.MerchantId,
+			&transfer.Iban,
+			&transfer.Payee,
+			&transfer.PrincipalAmount,
+			&transfer.FeeAmount,
+			&transfer.TotalDebit,
+			&transfer.Currency,
+			&transfer.VoPOverride,
+			&transfer.Version,
+		)
+		if err != nil {
+			fmt.Printf("[WARN] SWEEPER | failed to scan claimed transfer: %v, skipping\n", err)
+			// prevent poisoned pill problem, it will be retried in 5 minutes
+			continue
+		}
+		res = append(res, transfer)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over claimed transfers: %w", err)
+	}
+
+	return res, nil
+}
