@@ -22,7 +22,7 @@ CREATE TABLE sct_transfers
 
     partner_bank     UUID REFERENCES partner_banks,
     vop_response     JSONB,
-    vop_override     BOOL DEFAULT FALSE,
+    vop_override     BOOL                     DEFAULT FALSE,
 
     merchant_id      UUID            NOT NULL,
     iban             VARCHAR(34)     NOT NULL,
@@ -43,7 +43,7 @@ CREATE TABLE sct_transfers
 
     CONSTRAINT chk_positive_principal_amount CHECK (principal_amount > 0),
     CONSTRAINT chk_positive_fee_amount CHECK (fee_amount >= 0)
-    CONSTRAINT chk_amounts_balance CHECK (total_debit = principal_amount + fee_amount)
+        CONSTRAINT chk_amounts_balance CHECK (total_debit = principal_amount + fee_amount)
 );
 
 CREATE TABLE idempotency_records
@@ -70,3 +70,13 @@ CREATE TABLE outbox
     created_at TIMESTAMPTZ  NOT NULL DEFAULT clock_timestamp()
 );
 CREATE INDEX idx_sct_transfers_sweeper ON sct_transfers (status, locked_at) WHERE status IN ('CREATED', 'INITIALIZED');
+
+CREATE TABLE mock_ledger_entries
+(
+    idempotency_key  VARCHAR(128) PRIMARY KEY,
+    transfer_id      UUID        NOT NULL,
+    action           VARCHAR(50) NOT NULL,
+    principal_amount BIGINT      NOT NULL,
+    fee_amount       BIGINT      NOT NULL,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()
+);

@@ -64,7 +64,7 @@ func (s *TransfersService) runSweeper(ctx context.Context) {
 			}
 			for _, t := range transfers {
 				wg.Go(func() {
-					err := s.ExecuteSCT(context.Background(), t)
+					err := s.executeSCT(context.Background(), t)
 					if err != nil {
 						fmt.Printf("[ERR] Sweeper | Failed reconciliation for transfer (%v): %v\n", t.Id, err)
 					}
@@ -89,6 +89,14 @@ func (s *TransfersService) runSweeper(ctx context.Context) {
 			return
 		}
 	}
+}
+
+func (s *TransfersService) AcceptNewSCT(ctx context.Context, params domain.CreateTransferParams, idemKey string) (uuid.UUID, error) {
+	transfer, err := s.repo.Create(ctx, params, idemKey)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("create new transfer: %w", err)
+	}
+	return transfer.Id, s.executeSCT(ctx, transfer)
 }
 
 func (s *TransfersService) SettleSCT(ctx context.Context, transferId uuid.UUID) error {
@@ -121,13 +129,13 @@ func (s *TransfersService) SettleSCT(ctx context.Context, transferId uuid.UUID) 
 	return nil
 }
 
-func (s *TransfersService) ExecuteSCT(ctx context.Context, transfer *domain.Transfer) error {
-	err := s.InitializeAndVerify(ctx, transfer)
+func (s *TransfersService) executeSCT(ctx context.Context, transfer *domain.Transfer) error {
+	err := s.initializeAndVerify(ctx, transfer)
 	if err != nil {
 		return fmt.Errorf("InitializeAndVerify: %w", err)
 	}
 
-	err = s.HoldFundsAndOutbox(ctx, transfer)
+	err = s.holdFundsAndOutbox(ctx, transfer)
 	if err != nil {
 		return fmt.Errorf("HoldFundsAndOutbox: %w", err)
 	}
@@ -135,7 +143,7 @@ func (s *TransfersService) ExecuteSCT(ctx context.Context, transfer *domain.Tran
 	return nil
 }
 
-func (s *TransfersService) InitializeAndVerify(ctx context.Context, transfer *domain.Transfer) error {
+func (s *TransfersService) initializeAndVerify(ctx context.Context, transfer *domain.Transfer) error {
 	if transfer.Status != domain.StatusCreated {
 		return nil
 	}
@@ -194,7 +202,7 @@ func (s *TransfersService) InitializeAndVerify(ctx context.Context, transfer *do
 	return nil
 }
 
-func (s *TransfersService) HoldFundsAndOutbox(ctx context.Context, transfer *domain.Transfer) error {
+func (s *TransfersService) holdFundsAndOutbox(ctx context.Context, transfer *domain.Transfer) error {
 	if transfer.Status != domain.StatusInitialized {
 		return nil
 	}
