@@ -1,8 +1,14 @@
 services:
   postgres:
-    image: postgres:18.6-alpine
+    image: postgres:15-alpine
     command:
       - "postgres"
+      - "-c"
+      - "wal_level=logical"
+      - "-c"
+      - "max_replication_slots=4"
+      - "-c"
+      - "max_wal_senders=4"
       - "-c"
       - "max_wal_size=8GB"
       - "-c"
@@ -19,7 +25,7 @@ services:
       - ../migrations/001_init.up.sql:/docker-entrypoint-initdb.d/01-init.sql
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d transfers"]
+      test: ["CMD-SHELL", "pg_isready -U kiril -d transfers"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -28,16 +34,100 @@ services:
         limits:
           cpus: '1'
           memory: '1024M'
-
-  redis:
-    image: redis:8.10.2-alpine
+  kafka:
+    image: apache/kafka:3.7.0
     ports:
-      - "6379:6379"
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: '1024M'
+      - "9092:9092"
+    environment:
+      - KAFKA_NODE_ID=1
+      - KAFKA_PROCESS_ROLES=controller,broker
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
+      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      # The official Apache image requires a base64 UUID cluster ID for KRaft
+      - CLUSTER_ID=4L6g3nShT-eMCtK--X86sw
+    healthcheck:
+      test: [ "CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  debezium:
+    image: quay.io/debezium/connect:2.7
+    ports:
+      - "8083:8083"
+    environment:
+      - BOOTSTRAP_SERVERS=kafka:9092
+      - GROUP_ID=1
+      - CONFIG_STORAGE_TOPIC=my_connect_configs
+      - OFFSET_STORAGE_TOPIC=my_connect_offsets
+      - STATUS_STORAGE_TOPIC=my_connect_statuses
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+  debezium_setup:
+    image: curlimages/curl:latest
+    depends_on:
+      - debezium
+    restart: "no"
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "
+        echo 'Waiting for Debezium REST API to be ready...';
+        while ! curl -s http://debezium:8083/connectors > /dev/null; do
+          sleep 2;
+        done;
+      
+        echo 'Debezium is up! Registering the Outbox Connector...';
+        curl -X POST -H 'Content-Type: application/json' http://debezium:8083/connectors/ -d '{
+          \"name\": \"sct-outbox-connector\",
+          \"config\": {
+            \"connector.class\": \"io.debezium.connector.postgresql.PostgresConnector\",
+            \"tasks.max\": \"1\",
+            \"database.hostname\": \"postgres\",
+            \"database.port\": \"5432\",
+            \"database.user\": \"kiril\",
+            \"database.password\": \"hi_sumup\",
+            \"database.dbname\": \"transfers\",
+            \"database.server.name\": \"ledger_node\",
+            \"plugin.name\": \"pgoutput\",
+            \"table.include.list\": \"public.outbox_events\",
+            \"transforms\": \"outbox\",
+            \"transforms.outbox.type\": \"io.debezium.transforms.outbox.EventRouter\",
+            \"transforms.outbox.table.field.event.id\": \"id\",
+            \"transforms.outbox.table.field.event.key\": \"aggregateid\",
+            \"transforms.outbox.table.field.event.payload\": \"payload\",
+            \"transforms.outbox.table.field.event.type\": \"type\",
+            \"transforms.outbox.route.topic.replacement\": \"$${routedByValue}\"
+          }
+        }'
+        echo '\nSetup complete! Exiting...';
+        exit 0; # <-- Explicitly tell the container to exit successfully
+      "
+  transfers-api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    command: ["./transfers-api"]
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+  mock-partner-bank-adapter:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    command: ["./mock-partner-bank-adapter"]
+    depends_on:
+      kafka:
+        condition: service_healthy
 
 volumes:
   postgres_data:
