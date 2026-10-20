@@ -251,7 +251,8 @@ func (s *TransfersService) buildNewTransferEvent(transfer *domain.Transfer) (*do
 	event := domain.OutboxEvent{
 		Topic:   fmt.Sprintf("new_sct.%s", transfer.PartnerBank.Code),
 		Key:     transfer.Id.String(),
-		Headers: []byte{},
+		Type:    "NewTransfer",
+		Headers: []byte("{}"),
 		Payload: payload,
 	}
 	return &event, nil
@@ -273,7 +274,8 @@ func (s *TransfersService) buildTransferSettledNotifyEvent(transfer *domain.Tran
 	event := domain.OutboxEvent{
 		Topic:   fmt.Sprintf("notifications.users"),
 		Key:     transfer.MerchantId.String(),
-		Headers: []byte{},
+		Type:    "TransferSettled",
+		Headers: []byte("{}"),
 		Payload: payload,
 	}
 	return &event, nil

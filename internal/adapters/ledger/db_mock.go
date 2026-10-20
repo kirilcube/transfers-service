@@ -31,6 +31,7 @@ func (c *DBMock) ReserveFunds(ctx context.Context, t *domain.Transfer) error {
 		// already inserted
 		return nil
 	}
+	fmt.Printf("Ledger Funds Reserved %v (%s) transfer %s\n", t.PrincipalAmount, t.Currency, t.Id.String())
 	return nil
 }
 
@@ -47,6 +48,7 @@ func (c *DBMock) SettleFunds(ctx context.Context, t *domain.Transfer) error {
 		// already inserted
 		return nil
 	}
+	fmt.Printf("Ledger Funds Settled %v (%s) transfer %s\n", t.PrincipalAmount, t.Currency, t.Id.String())
 	return nil
 }
 

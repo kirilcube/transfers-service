@@ -8,7 +8,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
-const KAFKA_URL = "kafka"
+const KAFKA_URL = "kafka:9092"
 
 type Handler interface {
 	Handle(ctx context.Context, record *kgo.Record) error

@@ -12,5 +12,5 @@ func NewMock() *Mock {
 }
 
 func (v *Mock) Check(ctx context.Context, iban string, payee string) (domain.VoPCode, string, error) {
-	return domain.VoPMatch, "", nil
+	return domain.VoPMatch, "{}", nil
 }

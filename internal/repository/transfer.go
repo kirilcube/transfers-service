@@ -40,7 +40,7 @@ func (r *TransferRepo) Create(ctx context.Context, params domain.CreateTransferP
 		`INSERT INTO sct_transfers
 			(merchant_id, iban, payee, principal_amount, fee_amount, total_debit, currency, reference_text, locked_at)
 		VALUES 
-		    ($1, $2, $3, $4, $5, $6, clock_timestamp()) 
+		    ($1, $2, $3, $4, $5, $6, $7, $8, clock_timestamp()) 
 		RETURNING id, status, version`,
 		params.MerchantId, params.Iban, params.Payee, params.PrincipalAmount, feeAmount, totalDebit, params.Currency, params.ReferenceText,
 	)
@@ -147,7 +147,7 @@ func (r *TransferRepo) UpdateStatusAndPartnerBank(ctx context.Context, t *domain
 		    locked_at = clock_timestamp(),
 			updated_at = clock_timestamp()
 		WHERE id = $3 AND version = $4
-		`, t.PartnerBank, t.Status, t.Id, t.Version)
+		`, t.PartnerBank.Id, t.Status, t.Id, t.Version)
 	if err != nil {
 		return fmt.Errorf("failed to update transfer row: %w", err)
 	}
@@ -203,9 +203,9 @@ func (r *TransferRepo) UpdateStatusAndOutbox(ctx context.Context, t *domain.Tran
 	}
 
 	_, err = tx.Exec(ctx, `INSERT INTO outbox
-		 (topic, key, headers, payload)
-		 VALUES ($1, $2, $3, $4)`,
-		event.Topic, event.Key, event.Headers, event.Payload)
+		 (aggregatetype, aggregateid, type, headers, payload)
+		 VALUES ($1, $2, $3, $4, $5)`,
+		event.Topic, event.Key, event.Type, event.Headers, event.Payload)
 
 	if err != nil {
 		return fmt.Errorf("failed to write to outbox: %w", err)

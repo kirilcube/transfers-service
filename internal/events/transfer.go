@@ -25,6 +25,5 @@ type TransferSettledNotifyPayload struct {
 // In real system we'd use Apache Avro Schemes
 
 type TransferCleared struct {
-	IdempotencyKey string    `json:"idempotency_key"`
-	Id             uuid.UUID `json:"id"`
+	Id uuid.UUID `json:"id"`
 }

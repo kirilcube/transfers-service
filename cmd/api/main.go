@@ -24,13 +24,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const DATABASE_URL = ""
+const DATABASE_URL = "postgres://kiril:hi_sumup@postgres:5432/transfers?sslmode=disable&pool_max_conns=12"
 
 func main() {
 	quit, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	db, err := pgxpool.New(quit, DATABASE_URL+"?pool_max_conns=12")
+	db, err := pgxpool.New(quit, DATABASE_URL)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
 		os.Exit(1)
