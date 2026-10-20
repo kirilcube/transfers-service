@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"os"
 	"os/signal"
@@ -26,6 +27,7 @@ func main() {
 		kgo.ConsumerGroup(ConsumerGroup),
 		kgo.ConsumeTopics(SourceTopic),
 		kgo.AutoCommitMarks(),
+		kgo.AllowAutoTopicCreation(),
 	)
 	if err != nil {
 		log.Fatalf("unable to create kafka client: %v", err)
@@ -45,10 +47,18 @@ func main() {
 		})
 
 		fetches.EachRecord(func(record *kgo.Record) {
+			type DebeziumEnvelope struct {
+				Payload string `json:"payload"` // Notice this is a string, not a struct
+			}
+			var envelope DebeziumEnvelope
+			if err := json.Unmarshal(record.Value, &envelope); err != nil {
+				log.Printf("[ERR] failed to unmarshal envelope: %v", err)
+				return
+			}
 			outRecord := &kgo.Record{
 				Topic: DestinationTopic,
 				Key:   record.Key,
-				Value: record.Value,
+				Value: []byte(envelope.Payload),
 			}
 
 			client.Produce(ctx, outRecord, func(r *kgo.Record, err error) {

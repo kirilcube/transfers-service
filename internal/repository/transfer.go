@@ -87,18 +87,19 @@ func (r *TransferRepo) Create(ctx context.Context, params domain.CreateTransferP
 
 func (r *TransferRepo) GetById(ctx context.Context, id uuid.UUID) (*domain.Transfer, error) {
 	query :=
-		`SELECT t.id, t.status, t.partner_bank, t.merchant_id, t.iban, t.payee, 
-			t.principal_amount, t.fee_amount, t.total_debit, t.currency, 
-			t.vop_override, t.version
-		FROM sct_transfers
+		`SELECT id, status, partner_bank, merchant_id, iban, payee, 
+			principal_amount, fee_amount, total_debit, currency, 
+			vop_override, version
+		FROM sct_transfers 
 		WHERE id = $1`
-	row := r.db.QueryRow(ctx, query, id)
+	row := r.db.QueryRow(ctx, query, id.String())
 
+	var bankId uuid.UUID
 	transfer := &domain.Transfer{}
 	err := row.Scan(
 		&transfer.Id,
 		&transfer.Status,
-		&transfer.PartnerBank,
+		&bankId,
 		&transfer.MerchantId,
 		&transfer.Iban,
 		&transfer.Payee,
@@ -109,11 +110,24 @@ func (r *TransferRepo) GetById(ctx context.Context, id uuid.UUID) (*domain.Trans
 		&transfer.VoPOverride,
 		&transfer.Version,
 	)
+	bank, err := r.GetBankById(bankId)
+	if err != nil {
+		return nil, fmt.Errorf("get bank by id(%s): %w", bankId.String(), err)
+	}
+	transfer.PartnerBank = bank
+
 	if err != nil {
 		return nil, fmt.Errorf("sql SELECT query: %w", err)
 	}
 
 	return transfer, nil
+}
+
+func (r *TransferRepo) GetBankById(id uuid.UUID) (*domain.Bank, error) {
+	return &domain.Bank{
+		Id:   id,
+		Code: "default",
+	}, nil
 }
 
 func (r *TransferRepo) UpdateStatus(ctx context.Context, t *domain.Transfer) error {

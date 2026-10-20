@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"transfers/internal/events"
 	"transfers/internal/service"
 
+	"github.com/google/uuid"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
@@ -24,7 +24,9 @@ func NewSCTClearedHandler(svc *service.TransfersService) *SCTClearedHandler {
 }
 
 func (h *SCTClearedHandler) Handle(ctx context.Context, record *kgo.Record) error {
-	var payload events.TransferCleared
+	var payload struct {
+		Id uuid.UUID `json:"id"`
+	}
 	err := json.Unmarshal(record.Value, &payload)
 	if err != nil {
 		return fmt.Errorf("json.unmarshaling: %w", err)

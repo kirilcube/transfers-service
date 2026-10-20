@@ -36,7 +36,7 @@ func (c *DBMock) ReserveFunds(ctx context.Context, t *domain.Transfer) error {
 }
 
 func (c *DBMock) SettleFunds(ctx context.Context, t *domain.Transfer) error {
-	idemKey := t.DeriveIdempotencyKey(domain.LedgerReserveFundsEvent)
+	idemKey := t.DeriveIdempotencyKey(domain.LedgerSettleFundsEvent)
 	query := `INSERT INTO mock_ledger_entries 
     		(idempotency_key, transfer_id, action, principal_amount, fee_amount)
 		VALUES ($1, $2, 'SETTLE', $3, $4)`

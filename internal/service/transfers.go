@@ -126,6 +126,8 @@ func (s *TransfersService) SettleSCT(ctx context.Context, transferId uuid.UUID) 
 	if err != nil {
 		return fmt.Errorf("repo update status and outbox: %w", err)
 	}
+
+	fmt.Printf("[INFO] transfer(%s) funds settled\n", transfer.Id.String())
 	return nil
 }
 
@@ -140,6 +142,7 @@ func (s *TransfersService) executeSCT(ctx context.Context, transfer *domain.Tran
 		return fmt.Errorf("HoldFundsAndOutbox: %w", err)
 	}
 
+	fmt.Printf("[INFO] transfer(%s) reserved funds and sent for clearing\n", transfer.Id.String())
 	return nil
 }
 

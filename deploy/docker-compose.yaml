@@ -46,8 +46,10 @@ services:
       - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
       - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
       - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
-      # The official Apache image requires a base64 UUID cluster ID for KRaft
       - CLUSTER_ID=4L6g3nShT-eMCtK--X86sw
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
+      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1
     healthcheck:
       test: [ "CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list" ]
       interval: 10s
@@ -64,6 +66,9 @@ services:
       - CONFIG_STORAGE_TOPIC=my_connect_configs
       - OFFSET_STORAGE_TOPIC=my_connect_offsets
       - STATUS_STORAGE_TOPIC=my_connect_statuses
+      - CONFIG_STORAGE_REPLICATION_FACTOR=1
+      - OFFSET_STORAGE_REPLICATION_FACTOR=1
+      - STATUS_STORAGE_REPLICATION_FACTOR=1
     depends_on:
       postgres:
         condition: service_healthy
@@ -83,7 +88,7 @@ services:
         done;
       
         echo 'Debezium is up! Registering the Outbox Connector...';
-        curl -X POST -H 'Content-Type: application/json' http://debezium:8083/connectors/ -d '{
+        curl -X POST -H 'Content-Type: application/json' http://debezium:8083/connectors -d '{
           \"name\": \"sct-outbox-connector\",
           \"config\": {
             \"connector.class\": \"io.debezium.connector.postgresql.PostgresConnector\",
@@ -93,9 +98,11 @@ services:
             \"database.user\": \"kiril\",
             \"database.password\": \"hi_sumup\",
             \"database.dbname\": \"transfers\",
-            \"database.server.name\": \"ledger_node\",
+            \"topic.prefix\": \"transfers\",
             \"plugin.name\": \"pgoutput\",
-            \"table.include.list\": \"public.outbox_events\",
+            \"key.converter.schemas.enable\": \"false\",
+            \"value.converter.schemas.enable\": \"false\",
+            \"table.include.list\": \"public.outbox\",
             \"transforms\": \"outbox\",
             \"transforms.outbox.type\": \"io.debezium.transforms.outbox.EventRouter\",
             \"transforms.outbox.table.field.event.id\": \"id\",
@@ -120,6 +127,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      debezium_setup:
+        condition: service_completed_successfully
   mock-partner-bank-adapter:
     build:
       context: ..
