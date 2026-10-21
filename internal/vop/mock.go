@@ -12,5 +12,8 @@ func NewMock() *Mock {
 }
 
 func (v *Mock) Check(ctx context.Context, iban string, payee string) (domain.VoPCode, string, error) {
+	if iban == "fail_with_vop_no_match" {
+		return domain.VoPNoMatch, "{}", nil
+	}
 	return domain.VoPMatch, "{}", nil
 }

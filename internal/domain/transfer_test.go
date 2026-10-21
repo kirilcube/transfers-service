@@ -7,17 +7,6 @@ import (
 	"github.com/google/uuid"
 )
 
-//const (
-//	StatusCreated         TransferStatus = "CREATED"
-//	StatusAntifraudFailed TransferStatus = "ANTIFRAUD_FAILED"
-//	StatusVoPNoMatch      TransferStatus = "VOP_NO_MATCH"
-//	StatusRoutingFailed   TransferStatus = "ROUTING_FAILED"
-//	StatusInitialized     TransferStatus = "INITIALIZED"
-//	StatusFundsHolded     TransferStatus = "FUNDS_HOLDED"
-//	StatusCleared         TransferStatus = "CLEARED"
-//	StatusSettled         TransferStatus = "SETTLED"
-//)
-
 func TestTransfer_TransitionTo(t *testing.T) {
 	tests := []struct {
 		name          string
