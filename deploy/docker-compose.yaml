@@ -130,6 +130,21 @@ services:
         condition: service_healthy
       debezium_setup:
         condition: service_completed_successfully
+  transfers-api-2:
+    container_name: "transfers-api-pod-2"
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    command: [ "./transfers-api" ]
+    ports:
+      - "8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      debezium_setup:
+        condition: service_completed_successfully
   mock-partner-bank-adapter:
     build:
       context: ..
