@@ -15,6 +15,9 @@ type Handler interface {
 }
 
 func RunKafkaConsumer(ctx context.Context, topic string, consumerGroupId string, handler Handler, maxConcurrent int) {
+	if maxConcurrent < 1 {
+		panic("maxConcurrent can't be less than 1")
+	}
 	sem := make(chan struct{}, maxConcurrent)
 	kafkaClient, err := kgo.NewClient(
 		kgo.SeedBrokers(KAFKA_URL),

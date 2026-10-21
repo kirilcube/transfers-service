@@ -6,7 +6,9 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sync/atomic"
 	"syscall"
+	"time"
 
 	"github.com/twmb/franz-go/pkg/kgo"
 )
@@ -35,6 +37,25 @@ func main() {
 	defer client.Close()
 
 	log.Printf("Relaying messages from '%s' to '%s'...", SourceTopic, DestinationTopic)
+	var replayed atomic.Int64
+
+	go func() {
+		var lastReplayed int64
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				curr := replayed.Load()
+				if curr-lastReplayed > 5 {
+					log.Printf("Total replayed: %d", curr)
+					lastReplayed = curr
+				}
+			}
+		}
+	}()
 
 	for {
 		fetches := client.PollFetches(ctx)
@@ -69,6 +90,7 @@ func main() {
 				}
 
 				client.MarkCommitRecords(record)
+				replayed.Add(1)
 			})
 		})
 	}

@@ -83,7 +83,7 @@ services:
     command: >
       "
         echo 'Waiting for Debezium REST API to be ready...';
-        while ! curl -s http://debezium:8083/connectors > /dev/null; do
+        while ! curl -s -f http://debezium:8083/connectors > /dev/null; do
           sleep 2;
         done;
       
@@ -116,6 +116,7 @@ services:
         exit 0; # <-- Explicitly tell the container to exit successfully
       "
   transfers-api:
+    container_name: "transfers-api-pod-1"
     build:
       context: ..
       dockerfile: Dockerfile

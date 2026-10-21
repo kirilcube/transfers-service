@@ -17,9 +17,9 @@ import (
 	"transfers/internal/adapters/kafka"
 	"transfers/internal/adapters/ledger"
 	"transfers/internal/adapters/router"
+	"transfers/internal/adapters/vop"
 	"transfers/internal/repository"
 	"transfers/internal/service"
-	"transfers/internal/vop"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )

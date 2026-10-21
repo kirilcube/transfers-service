@@ -94,7 +94,7 @@ func (r *TransferRepo) GetById(ctx context.Context, id uuid.UUID) (*domain.Trans
 		WHERE id = $1`
 	row := r.db.QueryRow(ctx, query, id.String())
 
-	var bankId uuid.UUID
+	var bankId *uuid.UUID
 	transfer := &domain.Transfer{}
 	err := row.Scan(
 		&transfer.Id,
@@ -110,11 +110,13 @@ func (r *TransferRepo) GetById(ctx context.Context, id uuid.UUID) (*domain.Trans
 		&transfer.VoPOverride,
 		&transfer.Version,
 	)
-	bank, err := r.GetBankById(bankId)
-	if err != nil {
-		return nil, fmt.Errorf("get bank by id(%s): %w", bankId.String(), err)
+	if bankId != nil {
+		bank, err := r.GetBankById(*bankId)
+		if err != nil {
+			return nil, fmt.Errorf("get bank by id(%s): %w", bankId.String(), err)
+		}
+		transfer.PartnerBank = bank
 	}
-	transfer.PartnerBank = bank
 
 	if err != nil {
 		return nil, fmt.Errorf("sql SELECT query: %w", err)
@@ -236,6 +238,7 @@ func (r *TransferRepo) UpdateStatusAndOutbox(ctx context.Context, t *domain.Tran
 }
 
 func (r *TransferRepo) SelectForReconciliation(ctx context.Context) ([]*domain.Transfer, error) {
+	// TODO: 5 minutes is hardcoded, move to ENV
 	query := `
 		WITH claimed AS (
 			SELECT id
@@ -265,11 +268,12 @@ func (r *TransferRepo) SelectForReconciliation(ctx context.Context) ([]*domain.T
 
 	res := make([]*domain.Transfer, 0, 100)
 	for rows.Next() {
+		var bankId *uuid.UUID
 		transfer := &domain.Transfer{}
 		err = rows.Scan(
 			&transfer.Id,
 			&transfer.Status,
-			&transfer.PartnerBank,
+			&bankId,
 			&transfer.MerchantId,
 			&transfer.Iban,
 			&transfer.Payee,
@@ -284,6 +288,13 @@ func (r *TransferRepo) SelectForReconciliation(ctx context.Context) ([]*domain.T
 			fmt.Printf("[WARN] SWEEPER | failed to scan claimed transfer: %v, skipping\n", err)
 			// prevent poisoned pill problem, it will be retried in 5 minutes
 			continue
+		}
+		if bankId != nil {
+			bank, err := r.GetBankById(*bankId)
+			if err != nil {
+				return nil, fmt.Errorf("get bank by id(%s): %w", bankId.String(), err)
+			}
+			transfer.PartnerBank = bank
 		}
 		res = append(res, transfer)
 	}
