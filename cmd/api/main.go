@@ -58,8 +58,9 @@ func main() {
 	})
 
 	transfersHandler := adapterHttp.NewTransferHandler(ts)
+	ledgerHandler := adapterHttp.NewLedgerHandler(ledgerClient)
 	mux := http.NewServeMux()
-	adapterHttp.RegisterRoutes(mux, transfersHandler)
+	adapterHttp.RegisterRoutes(mux, transfersHandler, ledgerHandler)
 
 	srv := &http.Server{
 		Addr:    ":8080",

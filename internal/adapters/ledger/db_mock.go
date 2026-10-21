@@ -52,14 +52,7 @@ func (c *DBMock) SettleFunds(ctx context.Context, t *domain.Transfer) error {
 	return nil
 }
 
-type State struct {
-	TotalTransfers int64
-	TotalReserved  int64
-	TotalSettled   int64
-	TotalFees      int64
-}
-
-func (c *DBMock) GetState(ctx context.Context) (State, error) {
+func (c *DBMock) GetState(ctx context.Context) (domain.LedgerState, error) {
 	query := `
 		SELECT 
 			COUNT(DISTINCT transfer_id) AS total_transfers,
@@ -69,7 +62,7 @@ func (c *DBMock) GetState(ctx context.Context) (State, error) {
 		FROM mock_ledger_entries
 	`
 
-	state := State{}
+	state := domain.LedgerState{}
 
 	err := c.db.QueryRow(ctx, query).Scan(
 		&state.TotalTransfers,
@@ -79,7 +72,7 @@ func (c *DBMock) GetState(ctx context.Context) (State, error) {
 	)
 
 	if err != nil {
-		return State{}, fmt.Errorf("failed to query ledger state: %w", err)
+		return domain.LedgerState{}, fmt.Errorf("failed to query ledger state: %w", err)
 	}
 
 	return state, nil
