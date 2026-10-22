@@ -13,8 +13,6 @@ It models my estimation of how fintechs like SumUp process real-world transfers:
 
 *(Note: The Partner Bank represents a real banking entity with access to clearing networks. Its adapter—which translates our JSON to ISO 20022 `.pain`/`.pacs` files and produces messages to a `cleared` topic—is not implemented in current iteration).*
 
----
-
 ## Pipeline
 
 The system implements the SEPA Credit Transfer (SCT) flow. The happy path executes in two asynchronous phases:
@@ -44,8 +42,6 @@ Two core mechanisms ensure every transfer reaches a terminal state (either faile
 * **The Sweeper (First Phase):** Recovers transfers left in an unfinished state. It uses a `locked_at` timestamp column to find abandoned transfers, updates a `version` column to claim them (optimistic locking), and re-queues them into the pipeline.
 * **Manual Offset Commits (Second Phase):** A transfer's `settled` message is not committed to Kafka until the database transaction fully succeeds. If the pod crashes, Kafka will re-deliver the message to another pod.
 
----
-
 ## Idempotency
 
 The system enforces strict deduplication across three layers:
@@ -53,8 +49,6 @@ The system enforces strict deduplication across three layers:
 * **API Layer:** We use an `idempotency_records` table and the `Idempotency-Key` HTTP header to deduplicate incoming transfer requests.
 * **Settlement Layer:** We use `transfer_id` + the current database state to deduplicate incoming Kafka settlement messages.
 * **Ledger Layer:** We generate deterministically derived idempotency keys for all outgoing requests to the Ledger.
-
----
 
 ## Scope
 
@@ -66,8 +60,6 @@ The Ledger is mocked using a simple, single-table database implementation. This 
 
 *(A production-grade ledger should be implemented using double-entry accounting and transit accounts. See [Stripe's Ledger architecture](https://stripe.dev/blog/ledger-stripe-system-for-tracking-and-validating-money-movement) for reference).*
 
----
-
 ## Infrastructure
 
 * **PostgreSQL:** Primary datastore.
@@ -76,12 +68,12 @@ The Ledger is mocked using a simple, single-table database implementation. This 
 
 ### Considered / Future Improvements
 
-*   **E2E & Chaos Testing Are Fragile** Currently E2E & Chaos Testing Developer Experience is terrible. It should be addressed in the future.
+*   **Clearing Rejections:** If a transfer is rejected in clearing, the system needs a rollback flow to execute compensating transactions.
+*   **E2E & Chaos Testing Are Fragile** CCurrently, the E2E and Chaos Testing developer experience requires heavy manual orchestration. It should be addressed in the future.
 *   **VoP Override Flow:** Currently, if Verification of Payee (VoP) returns a `no_match`, the system halts the transfer and returns a "VoP override required" error. The follow-up API endpoint for clients to explicitly confirm the override and resume the transfer is not yet implemented.
 *   **Redis:** A must-have for production (e.g., for distributed locking or rate limiting), but prioritized behind core state-machine logic for this iteration.
+*   **Metrics & Observability:** While Prometheus/Grafana metrics are essential for a live system, instrumentation was omitted to keep the codebase strictly focused on proving data integrity and exactly-once semantics.
 *   **Rate-Limiter:** Relevant for a deployed environment under stress testing, but out of scope for the current architectural goals.
-
----
 
 ## Testing
 
