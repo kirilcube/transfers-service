@@ -71,7 +71,7 @@ func sendTransfer(ctx context.Context, apiHost string, index int) {
 			fmt.Printf("[ERR] sendTransfer response status: %v (could not read body)\n", resp.Status)
 			return
 		}
-		if resp.StatusCode != 409 {
+		if resp.StatusCode != 409 && resp.StatusCode != 202 {
 			fmt.Printf("[ERR] sendTransfer rejected - Status: %d, Message: %s\n", resp.StatusCode, string(errorBytes))
 		}
 		return
@@ -168,7 +168,7 @@ func connectToDb(ctx context.Context, t *testing.T) *pgxpool.Pool {
 }
 
 func waitForLedgerState(ctx context.Context, apiHost string, expectedState LedgerState, tries int, t *testing.T) {
-	fmt.Printf("Waiting for transfers to settle and ledger state to be as expected")
+	fmt.Printf("Waiting for transfers to settle and ledger state to be as expected\n")
 	var state LedgerState
 	for i := 0; i < tries; i++ {
 		var err error
