@@ -75,6 +75,18 @@ The Ledger is mocked using a simple, single-table database implementation. This 
 *   **Metrics & Observability:** While Prometheus/Grafana metrics are essential for a live system, instrumentation was omitted to keep the codebase strictly focused on proving data integrity and exactly-once semantics.
 *   **Rate-Limiter:** Relevant for a deployed environment under stress testing, but out of scope for the current architectural goals.
 
+## Quick Start
+
+The infrastructure and test commands are managed via a `Makefile` located in the `/deploy` directory.
+
+**Available Commands:**
+
+* `make up` — Starts all infrastructure dependencies in the background (`docker-compose up -d`).
+* `make test` — Runs the unit and integration test suite with the race detector enabled (`go test -v -race ./...`).
+* `make reset` — Completely wipes the current state. Useful for clearing between manual E2E test runs.
+* `make down` — Stops the infrastructure without removing volumes.
+* `make clean` — Stops the infrastructure and removes all associated data volumes.
+
 ## Testing
 
 The test suite ensures data integrity across both happy and error paths, relying heavily on real database engines rather than mocks.
