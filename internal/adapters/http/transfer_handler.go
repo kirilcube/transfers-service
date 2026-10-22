@@ -3,8 +3,10 @@ package http
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
+	"transfers/internal/repository"
 
 	"transfers/internal/domain"
 	"transfers/internal/service"
@@ -13,11 +15,12 @@ import (
 )
 
 type TransferHandler struct {
-	svc *service.TransfersService
+	svc  *service.TransfersService
+	repo *repository.TransferRepo
 }
 
-func NewTransferHandler(svc *service.TransfersService) *TransferHandler {
-	return &TransferHandler{svc: svc}
+func NewTransferHandler(svc *service.TransfersService, repo *repository.TransferRepo) *TransferHandler {
+	return &TransferHandler{svc: svc, repo: repo}
 }
 
 func (h *TransferHandler) HandleCreateSCT(w http.ResponseWriter, r *http.Request) {
@@ -56,26 +59,48 @@ func (h *TransferHandler) HandleCreateSCT(w http.ResponseWriter, r *http.Request
 	}
 
 	transferId, err := h.svc.AcceptNewSCT(r.Context(), params, idemKey)
+	var respCode int
+	respBody := make(map[string]string, 1)
 	if err != nil {
 		switch {
 		case errors.Is(err, domain.ErrIdempotencyConflict):
-			http.Error(w, "Conflict: Idempotency key already used", http.StatusConflict)
+			respCode, respBody, err := h.svc.GetCachedResponse(r.Context(), idemKey, merchantId)
+			if err != nil {
+				log.Printf("[ERR] failed get cached response: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(respCode)
+			_, _ = w.Write([]byte(respBody))
+			return
 		case errors.Is(err, domain.ErrVoPOverrideRequired):
-			http.Error(w, "Verification of Payee failed", http.StatusUnprocessableEntity)
+			respCode = http.StatusUnprocessableEntity
+			respBody["message"] = "Verification of Payee failed. Override required"
 		case errors.Is(err, domain.ErrAntifraudFailed):
-			http.Error(w, "Blocked by Antifraud", http.StatusForbidden)
+			respCode = http.StatusForbidden
+			respBody["message"] = "Blocked by Antifraud"
 		default:
 			log.Printf("[ERR] failed SCT: %v", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
 		}
-		return
+	} else {
+		respCode = http.StatusAccepted
+		respBody["message"] = "Accepted"
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted)
-	respBody := map[string]string{
-		"id":     transferId.String(),
-		"status": "ACCEPTED",
+	respBodyJson, err := json.Marshal(&respBody)
+	if err != nil {
+		fmt.Printf("[ERR] json marshal of response body (%v) failed: %v", respBody, err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
 	}
-	json.NewEncoder(w).Encode(respBody)
+	err = h.repo.UpdateCachedResponse(r.Context(), idemKey, merchantId, transferId, respCode, string(respBodyJson))
+	if err != nil {
+		fmt.Printf("[ERR] Updating of cached response failed: %v", err)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(respCode)
+	_, _ = w.Write(respBodyJson)
 }

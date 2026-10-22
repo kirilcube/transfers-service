@@ -57,7 +57,7 @@ func main() {
 		kafka.RunKafkaConsumer(quit, "sct.cleared", "group_sct_cleared", clearedSctHandler, maxConcurrentSctHandling)
 	})
 
-	transfersHandler := adapterHttp.NewTransferHandler(ts)
+	transfersHandler := adapterHttp.NewTransferHandler(ts, transfersRepo)
 	ledgerHandler := adapterHttp.NewLedgerHandler(ledgerClient)
 	mux := http.NewServeMux()
 	adapterHttp.RegisterRoutes(mux, transfersHandler, ledgerHandler)

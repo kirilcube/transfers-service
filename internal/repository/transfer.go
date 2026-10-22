@@ -305,3 +305,32 @@ func (r *TransferRepo) SelectForReconciliation(ctx context.Context) ([]*domain.T
 
 	return res, nil
 }
+
+func (r *TransferRepo) UpdateCachedResponse(ctx context.Context, idemKey string, merchantId uuid.UUID, transferId uuid.UUID, respCode int, respBody string) error {
+	query := `UPDATE idempotency_records
+		SET transfer_id = $1,
+		    response_body = $2,
+		    response_code = $3
+		WHERE idempotency_key = $4 AND merchant_id = $5`
+	tag, err := r.db.Exec(ctx, query, transferId, respBody, respCode, idemKey, merchantId)
+	if err != nil {
+		return fmt.Errorf("update idempotency_records table: %v", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("no records were updated")
+	}
+	return nil
+}
+
+func (r *TransferRepo) GetCachedResponse(ctx context.Context, idemKey string, merchantId uuid.UUID) (int, string, error) {
+	query := `SELECT response_code, response_body 
+		FROM idempotency_records 
+		WHERE idempotency_key = $1 AND merchant_id = $2`
+	var respCode int
+	var respBody string
+	err := r.db.QueryRow(ctx, query, idemKey, merchantId).Scan(&respCode, &respBody)
+	if err != nil {
+		return 0, "", fmt.Errorf("failed to query row: %v", err)
+	}
+	return respCode, respBody, nil
+}

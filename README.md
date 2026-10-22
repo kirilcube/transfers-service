@@ -69,9 +69,9 @@ The Ledger is mocked using a simple, single-table database implementation. This 
 ### Considered / Future Improvements
 
 *   **Clearing Rejections:** If a transfer is rejected in clearing, the system needs a rollback flow to execute compensating transactions.
-*   **E2E & Chaos Testing Are Fragile** CCurrently, the E2E and Chaos Testing developer experience requires heavy manual orchestration. It should be addressed in the future.
+*   **E2E & Chaos Testing Are Fragile** Currently, the E2E and Chaos Testing developer experience requires heavy manual orchestration. It should be addressed in the future.
 *   **VoP Override Flow:** Currently, if Verification of Payee (VoP) returns a `no_match`, the system halts the transfer and returns a "VoP override required" error. The follow-up API endpoint for clients to explicitly confirm the override and resume the transfer is not yet implemented.
-*   **Redis:** A must-have for production (e.g., for distributed locking or rate limiting), but prioritized behind core state-machine logic for this iteration.
+*   **Redis:** A must-have for production, but prioritized behind core state-machine logic for this iteration.
 *   **Metrics & Observability:** While Prometheus/Grafana metrics are essential for a live system, instrumentation was omitted to keep the codebase strictly focused on proving data integrity and exactly-once semantics.
 *   **Rate-Limiter:** Relevant for a deployed environment under stress testing, but out of scope for the current architectural goals.
 

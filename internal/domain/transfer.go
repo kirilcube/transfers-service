@@ -111,6 +111,8 @@ type TransferRepository interface {
 	UpdateStatusAndVoPResponse(ctx context.Context, t *Transfer, vopResponseBody string) error
 	UpdateStatusAndOutbox(ctx context.Context, t *Transfer, event *OutboxEvent) error
 	GetById(ctx context.Context, id uuid.UUID) (*Transfer, error)
+	GetCachedResponse(ctx context.Context, idemKey string, merchantId uuid.UUID) (int, string, error)
+	UpdateCachedResponse(ctx context.Context, idemKey string, merchantId uuid.UUID, transferId uuid.UUID, respCode int, respBody string) error
 	SelectForReconciliation(ctx context.Context) ([]*Transfer, error)
 }
 

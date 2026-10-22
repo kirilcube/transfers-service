@@ -91,6 +91,10 @@ func (s *TransfersService) runSweeper(ctx context.Context) {
 	}
 }
 
+func (s *TransfersService) GetCachedResponse(ctx context.Context, idemKey string, merchantId uuid.UUID) (int, string, error) {
+	return s.repo.GetCachedResponse(ctx, idemKey, merchantId)
+}
+
 func (s *TransfersService) AcceptNewSCT(ctx context.Context, params domain.CreateTransferParams, idemKey string) (uuid.UUID, error) {
 	transfer, err := s.repo.Create(ctx, params, idemKey)
 	if err != nil {
